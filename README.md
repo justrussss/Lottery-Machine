@@ -17,7 +17,7 @@ Each name is drawn once. Names that have already been picked stay on the shelf u
 
 ## How to use it
 
-1. Open `Lottery Machine.html` in a modern browser (it needs WebGL).
+1. Open `index.html` in a modern browser (it needs WebGL).
 2. Add names in the **Names** panel. Separate several names with commas, or add them one at a time. Up to 60 names, 24 characters each.
 3. Press **Draw a name** (or hit **Space**).
 4. The sign above the machine shows the winner once the ball lands on the shelf. Press draw again for the next one.
