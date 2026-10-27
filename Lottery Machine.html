@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lucky Draw – 3D Name Picker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #eef3fa;
+    --muted: #9fb0c6;
+    --panel: rgba(18,26,38,0.88);
+    --panel-line: rgba(238,243,250,0.16);
+    --row-alt: rgba(238,243,250,0.05);
+    --field: #0f1722;
+    --btn: rgba(36,50,70,0.92);
+    --btn-ink: #eef3fa;
+    --primary: #ff5a3f;
+    --primary-ink: #1a0c08;
+    --ball-ink: #1b1b1f;
+    --danger: #ff8a7a;
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(ellipse 60% 55% at 50% -5%, rgba(255,226,160,0.32), transparent 70%),
+      radial-gradient(circle at 15% 35%, rgba(255,70,120,0.22), transparent 32%),
+      radial-gradient(circle at 85% 30%, rgba(70,140,255,0.30), transparent 34%),
+      linear-gradient(180deg, #1c1346 0%, #0d0828 65%, #05030f 100%);
+    color: var(--ink);
+    font-family: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* out-of-focus studio lights */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(circle, rgba(255,214,120,0.55) 0 5px, transparent 7px) 8% 18% / 220px 190px,
+      radial-gradient(circle, rgba(120,170,255,0.5) 0 8px, transparent 11px) 40% 8% / 300px 240px,
+      radial-gradient(circle, rgba(255,110,150,0.45) 0 6px, transparent 9px) 72% 22% / 260px 210px,
+      radial-gradient(circle, rgba(255,255,255,0.4) 0 3px, transparent 5px) 25% 40% / 150px 130px;
+    opacity: .7;
+  }
+  #stage { position: fixed; inset: 0; touch-action: none; cursor: grab; }
+  #stage:active { cursor: grabbing; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  .hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 0;
+    display: flex; gap: 14px; align-items: flex-start;
+    pointer-events: none;
+  }
+  .last {
+    flex: none; display: flex; align-items: center; gap: 12px;
+    background: var(--panel); border: 1px solid var(--panel-line);
+    border-radius: 18px; padding: 10px 20px 10px 12px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    max-width: 280px;
+  }
+  .dot {
+    flex: none; width: 34px; height: 34px; border-radius: 50%;
+    background-image: radial-gradient(circle at 34% 28%, rgba(255,255,255,0.55), rgba(255,255,255,0) 46%);
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.16);
+  }
+  .dot.empty { background: none; box-shadow: none; border: 2px dashed var(--panel-line); }
+  .last .txt { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+  .last .txt span { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+  .last .txt b { font-size: 22px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history {
+    flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px;
+    align-content: flex-start; max-height: 84px; overflow: hidden; padding-top: 4px;
+  }
+  .chip {
+    border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 700;
+    color: var(--ball-ink); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.14);
+    animation: pop .35s ease-out;
+  }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    pointer-events: none;
+  }
+  .row { display: flex; gap: 10px; pointer-events: auto; flex-wrap: wrap; justify-content: center; }
+  button {
+    font: inherit; font-weight: 700; font-size: 16px; cursor: pointer;
+    border: 1px solid var(--panel-line); border-radius: 999px;
+    padding: 13px 22px; background: var(--btn); color: var(--btn-ink);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: transform .12s ease, opacity .12s ease;
+  }
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+  button.primary { background: var(--primary); color: var(--primary-ink); border-color: transparent; padding: 13px 34px; font-size: 18px; font-weight: 800; }
+  button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--primary); }
+  .hint { font-size: 12.5px; color: #c9c3e8; text-align: center; font-weight: 500; }
+  #namesBtn { display: none; }
+
+  .tune {
+    display: flex; gap: 6px 18px; flex-wrap: wrap; justify-content: center; pointer-events: auto;
+    font-size: 13px; font-weight: 700; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--panel-line);
+    border-radius: 999px; padding: 7px 18px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .tune label { display: flex; align-items: center; gap: 8px; }
+  .tune input[type="range"] { width: 110px; accent-color: var(--primary); }
+  .tune output { min-width: 2.6em; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 500; }
+
+  .panel {
+    position: fixed; z-index: 5;
+    right: 16px; top: calc(14px + env(safe-area-inset-top, 0px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    width: 316px; display: flex; flex-direction: column; gap: 10px;
+    background: var(--panel); border: 1px solid var(--panel-line);
+    border-radius: 20px; padding: 16px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  }
+  .phead { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .phead h2 { margin: 0; font-size: 20px; font-weight: 800; }
+  .phead p { margin: 2px 0 0; font-size: 13px; color: var(--muted); font-weight: 500; }
+  .close { display: none; padding: 6px 12px; font-size: 20px; line-height: 1; }
+  .add { display: flex; gap: 8px; }
+  .add input {
+    flex: 1; min-width: 0; font: inherit; font-size: 16px; font-weight: 500;
+    padding: 10px 14px; border-radius: 12px; border: 1px solid var(--panel-line);
+    background: var(--field); color: var(--ink);
+  }
+  .add button { padding: 10px 18px; background: var(--primary); color: var(--primary-ink); border-color: transparent; }
+  .note { margin: 0; font-size: 12.5px; color: var(--muted); min-height: 1.2em; }
+  .tablewrap { flex: 1; min-height: 0; overflow: auto; border: 1px solid var(--panel-line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  th { position: sticky; top: 0; background: var(--field); text-align: left; font-size: 12.5px; color: var(--muted); font-weight: 700; padding: 8px 10px; border-bottom: 1px solid var(--panel-line); }
+  td { padding: 7px 10px; border-bottom: 1px solid var(--panel-line); vertical-align: middle; }
+  tbody tr:nth-child(even) { background: var(--row-alt); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.idx { width: 28px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  td.nm { font-weight: 700; word-break: break-word; }
+  td.st { width: 74px; font-size: 12.5px; color: var(--muted); font-weight: 500; }
+  tr.picked td.nm { opacity: .6; }
+  td.del { width: 36px; text-align: right; }
+  td.del button { padding: 2px 9px; font-size: 18px; line-height: 1.2; background: transparent; border-color: transparent; color: var(--danger); }
+  td.del button:hover:not(:disabled) { background: var(--row-alt); border-color: var(--panel-line); }
+  .empty-row td { text-align: center; color: var(--muted); padding: 22px 10px; }
+  .subtle { padding: 8px 14px; font-size: 14px; align-self: flex-start; color: var(--danger); background: transparent; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #fail { position: fixed; inset: 0; display: none; place-items: center; padding: 24px; text-align: center; font-weight: 700; }
+
+  @media (min-width: 900px) {
+    .hud, .bar { right: 348px; }
+  }
+  @media (max-width: 899px) {
+    #namesBtn { display: inline-block; }
+    .close { display: inline-block; }
+    .panel {
+      left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 68vh;
+      border-radius: 20px 20px 0 0; border-bottom: 0;
+      padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      visibility: hidden; transform: translateY(105%);
+      transition: transform .25s ease, visibility 0s linear .25s;
+    }
+    .panel.open { visibility: visible; transform: none; transition: transform .25s ease; }
+    .tablewrap { min-height: 160px; }
+  }
+  @media (max-width: 560px) {
+    .hud { flex-direction: column; gap: 8px; }
+    .history { max-height: 76px; }
+    button { padding: 12px 16px; font-size: 15px; }
+    button.primary { padding: 12px 26px; }
+    .hint { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chip { animation: none; }
+    button, .panel { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="stage" aria-label="3D lottery machine. Drag to orbit, scroll or pinch to zoom."></div>
+
+<div class="hud">
+  <div class="last" aria-live="polite">
+    <div class="dot empty" id="lastDot"></div>
+    <div class="txt"><span id="lastTitle">Ready to draw</span><b id="lastName">–</b></div>
+  </div>
+  <div class="history" id="history"></div>
+</div>
+
+<div class="bar">
+  <div class="tune">
+    <label for="powerSlider">Intensity <input type="range" id="powerSlider" min="1" max="10" step="1" value="7"><output id="powerOut" for="powerSlider">7</output></label>
+    <label for="buildSlider">Build-up <input type="range" id="buildSlider" min="1" max="10" step="0.5" value="3"><output id="buildOut" for="buildSlider">3 s</output></label>
+  </div>
+  <div class="row">
+    <button id="mixBtn" aria-pressed="false">Mix balls</button>
+    <button id="drawBtn" class="primary">Draw a name</button>
+    <button id="resetBtn">Reset draw</button>
+    <button id="namesBtn">Names</button>
+  </div>
+  <div class="hint">Drag to orbit · scroll or pinch to zoom · press Space to draw</div>
+</div>
+
+<aside class="panel" id="panel" aria-label="Names list">
+  <div class="phead">
+    <div>
+      <h2>Names</h2>
+      <p id="leftText"></p>
+    </div>
+    <button class="close" id="closePanel" aria-label="Close names list">×</button>
+  </div>
+  <div class="add">
+    <input id="nameInput" type="text" maxlength="400" placeholder="Add a name" autocomplete="off" aria-label="Name to add">
+    <button id="addBtn">Add</button>
+  </div>
+  <p class="note" id="note" aria-live="polite">Separate several names with commas.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>Name</th><th>Status</th><th><span class="sr">Delete</span></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <button id="clearBtn" class="subtle">Remove all names</button>
+</aside>
+<div id="fail">This page needs WebGL to show the 3D machine.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- constants ---------- */
+  var R = 3.0;            // globe radius (inner)
+  var G = 18;             // gravity
+  var MAX_NAMES = 60;
+  var MAX_LEN = 24;
+  var PANEL_W = 348;      // desktop panel width incl. gap
+  var r = 0.36;           // ball radius (depends on how many names)
+
+  var stage = document.getElementById('stage');
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  } catch (e) {
+    document.getElementById('fail').style.display = 'grid';
+    return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  stage.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120);
+
+  /* ---------- lights ---------- */
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8795a8, 0.95));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.85);
+  sun.position.set(7, 12, 9);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+  sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 50;
+  sun.shadow.bias = -0.0006;
+  sun.shadow.radius = 4;
+  scene.add(sun);
+  var rimLight = new THREE.PointLight(0xbcd6ff, 0.45, 40);
+  rimLight.position.set(-8, 4, 6);
+  scene.add(rimLight);
+  var ledLight = new THREE.PointLight(0xffb347, 0.9, 9);
+  ledLight.position.set(0, -3.0, 3.2);
+  scene.add(ledLight);
+
+  /* ---------- materials ---------- */
+  // procedural studio environment (soft boxes on a gradient) for reflections
+  var envTex;
+  (function () {
+    var c = document.createElement('canvas');
+    c.width = 1024; c.height = 512;
+    var g = c.getContext('2d');
+    var grd = g.createLinearGradient(0, 0, 0, 512);
+    grd.addColorStop(0, '#f4f8ff');
+    grd.addColorStop(0.5, '#9fb0c4');
+    grd.addColorStop(1, '#3a4452');
+    g.fillStyle = grd; g.fillRect(0, 0, 1024, 512);
+    g.fillStyle = 'rgba(255,255,255,0.95)';
+    [[120, 90, 160, 110], [430, 70, 200, 90], [760, 100, 150, 120], [940, 160, 60, 160]].forEach(function (b) {
+      g.fillRect(b[0], b[1], b[2], b[3]);
+    });
+    var src = new THREE.CanvasTexture(c);
+    src.mapping = THREE.EquirectangularReflectionMapping;
+    var pm = new THREE.PMREMGenerator(renderer);
+    envTex = pm.fromEquirectangular(src).texture;
+    pm.dispose(); src.dispose();
+  })();
+  scene.environment = envTex;
+
+  var blackMat = new THREE.MeshStandardMaterial({ color: 0x15181d, roughness: 0.45, metalness: 0.2 });
+  var silverMat = new THREE.MeshStandardMaterial({ color: 0xc9ced6, roughness: 0.18, metalness: 1.0, envMapIntensity: 1.2 });
+  var glassMat = new THREE.MeshPhongMaterial({
+    color: 0xcfe6ff, transparent: true, opacity: 0.1, side: THREE.DoubleSide,
+    depthWrite: false, shininess: 120, specular: 0xffffff,
+    envMap: envTex, reflectivity: 0.45, combine: THREE.MixOperation
+  });
+  var acrylicMat = new THREE.MeshPhongMaterial({
+    color: 0xe3f0fb, transparent: true, opacity: 0.5, shininess: 140, specular: 0xffffff, depthWrite: false,
+    envMap: envTex, reflectivity: 0.3, combine: THREE.MixOperation
+  });
+  // shared glowing LED material (warm amber)
+  var lampMat = new THREE.MeshPhongMaterial({ color: 0xffe2a0, emissive: 0xff9f1a, emissiveIntensity: 0.9 });
+  var redMat = new THREE.MeshStandardMaterial({ color: 0xb3121f, roughness: 0.25, metalness: 0.1, envMapIntensity: 0.9 });
+  var goldMat = new THREE.MeshStandardMaterial({ color: 0xe0b040, roughness: 0.22, metalness: 1.0, envMapIntensity: 1.3 });
+  var stageMat = new THREE.MeshStandardMaterial({ color: 0x14183a, roughness: 0.12, metalness: 0.6, envMapIntensity: 1.1 });
+
+  /* ---------- pedestal ---------- */
+  // black wheeled base
+  var baseDisc = new THREE.Mesh(new THREE.CylinderGeometry(4.1, 4.1, 0.3, 72), blackMat);
+  baseDisc.position.set(0, -8.2, -0.9);
+  scene.add(baseDisc);
+  for (var ci = 0; ci < 4; ci++) {
+    var ca = Math.PI / 4 + ci * Math.PI / 2;
+    var caster = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 12), silverMat);
+    caster.position.set(Math.cos(ca) * 3.4, -8.5, -0.9 + Math.sin(ca) * 3.4);
+    scene.add(caster);
+  }
+  var shadowCanvas = document.createElement('canvas');
+  shadowCanvas.width = shadowCanvas.height = 256;
+  var sg = shadowCanvas.getContext('2d');
+  var sgrad = sg.createRadialGradient(128, 128, 20, 128, 128, 128);
+  sgrad.addColorStop(0, 'rgba(0,0,0,0.55)');
+  sgrad.addColorStop(0.55, 'rgba(0,0,0,0.3)');
+  sgrad.addColorStop(1, 'rgba(0,0,0,0)');
+  sg.fillStyle = sgrad; sg.fillRect(0, 0, 256, 256);
+  var floorShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(6.4, 56),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shadowCanvas), transparent: true, depthWrite: false })
+  );
+  floorShadow.rotation.x = -Math.PI / 2;
+  floorShadow.position.set(0, -8.74, -0.9);
+  scene.add(floorShadow);
+
+  // glossy stage floor with gold edge and glowing trim
+  var stageFloor = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 0.4, 96), stageMat);
+  stageFloor.position.set(1, -8.98, -2);
+  scene.add(stageFloor);
+  var stageRim = new THREE.Mesh(new THREE.TorusGeometry(10, 0.14, 12, 128), goldMat);
+  stageRim.rotation.x = Math.PI / 2;
+  stageRim.position.set(1, -8.78, -2);
+  scene.add(stageRim);
+  var stageGlow = new THREE.Mesh(new THREE.TorusGeometry(9.4, 0.05, 8, 128), lampMat);
+  stageGlow.rotation.x = Math.PI / 2;
+  stageGlow.position.set(1, -8.77, -2);
+  scene.add(stageGlow);
+
+  // backdrop light bars
+  for (var li = 0; li < 11; li++) {
+    var bar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 26, 0.2),
+      new THREE.MeshBasicMaterial({
+        color: li % 2 ? 0xffc864 : 0x5a8cff, transparent: true, opacity: 0.35,
+        blending: THREE.AdditiveBlending, depthWrite: false
+      })
+    );
+    bar.position.set(-17 + li * 3.6, 3, -13);
+    scene.add(bar);
+  }
+
+  // tapered red body with gold bands
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(2.55, 3.05, 4.4, 72), redMat);
+  body.position.set(0, -5.84, 0);
+  scene.add(body);
+  [-8.0, -5.84, -3.75].forEach(function (y) {
+    var rr = 3.05 - (y + 8.0) / 4.4 * 0.5 + 0.03;
+    var gb = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.09, 12, 96), goldMat);
+    gb.rotation.x = Math.PI / 2;
+    gb.position.set(0, y, 0);
+    scene.add(gb);
+  });
+
+  // round gold platter with glowing rim
+  var platter = new THREE.Mesh(new THREE.CylinderGeometry(3.1, 3.1, 0.14, 72), goldMat);
+  platter.position.set(0, -3.57, 0);
+  scene.add(platter);
+  var platterLed = new THREE.Mesh(new THREE.TorusGeometry(3.12, 0.06, 12, 120), lampMat);
+  platterLed.rotation.x = Math.PI / 2;
+  platterLed.position.y = -3.52;
+  scene.add(platterLed);
+  var platterGlow = new THREE.Mesh(
+    new THREE.TorusGeometry(3.12, 0.17, 12, 120),
+    new THREE.MeshBasicMaterial({ color: 0xffb347, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  platterGlow.rotation.x = Math.PI / 2;
+  platterGlow.position.y = -3.52;
+  scene.add(platterGlow);
+
+  // collar the globe sits on
+  var collar = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.25, 1.3, 0.85, 56),
+    goldMat
+  );
+  collar.position.set(0, -3.07, 0);
+  scene.add(collar);
+
+  /* ---------- results shelf for drawn balls ---------- */
+  // to the right of the machine, at platter height
+  var RACK = { cx: 6.6, w: 4.4, bottom: -3.5, z: 0 };
+
+  var rackPanel = new THREE.Mesh(new THREE.BoxGeometry(4.8, 6.4, 0.1), glassMat);
+  rackPanel.position.set(RACK.cx, -0.3, -0.75);
+  scene.add(rackPanel);
+  var rackShelf = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.2, 1.8), goldMat);
+  rackShelf.position.set(RACK.cx, RACK.bottom - 0.1, 0);
+  scene.add(rackShelf);
+
+  /* ---------- draw tube: leaves the globe, spirals up around the machine, ends over the shelf ---------- */
+  var TUBE_R = 0.66, HELIX_R = R + 0.95;
+  var tubePts = [new THREE.Vector3(R + 0.05, 0, 0)];
+  for (var hk = 0; hk <= 12; hk++) {
+    var ph = hk / 12 * Math.PI * 5 / 3;   // 300 degrees round the globe, passing behind first
+    tubePts.push(new THREE.Vector3(Math.cos(ph) * HELIX_R, 0.1 + 2.6 * hk / 12, -Math.sin(ph) * HELIX_R));
+  }
+  tubePts.push(new THREE.Vector3(4.0, 3.0, 3.2));
+  tubePts.push(new THREE.Vector3(5.8, 2.95, 2.7));
+  tubePts.push(new THREE.Vector3(RACK.cx, 2.6, 2.4));
+  var SPOUT = new THREE.Vector3(RACK.cx, 2.0, 2.4);
+  tubePts.push(SPOUT);
+  var tubeCurve = new THREE.CatmullRomCurve3(tubePts, false, 'centripetal');
+  var tubeMat = new THREE.MeshPhongMaterial({
+    color: 0xdcecff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false,
+    shininess: 140, specular: 0xffffff, envMap: envTex, reflectivity: 0.6, combine: THREE.MixOperation
+  });
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(tubeCurve, 320, TUBE_R, 24, false), tubeMat));
+
+  // bright glass edges so the tube outline reads against the dark backdrop
+  var tubeRimMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide,
+    vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0); gl_FragColor = vec4(vec3(0.8,0.9,1.0) * f, f * 0.9); }'
+  });
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(tubeCurve, 320, TUBE_R + 0.03, 24, false), tubeRimMat));
+
+  // gold support bands along the tube
+  var zAxis = new THREE.Vector3(0, 0, 1);
+  for (var bi = 0; bi < 9; bi++) {
+    var bu = 0.06 + bi * 0.108;
+    var bandMesh = new THREE.Mesh(new THREE.TorusGeometry(TUBE_R + 0.02, 0.06, 10, 36), goldMat);
+    bandMesh.position.copy(tubeCurve.getPointAt(bu));
+    bandMesh.quaternion.setFromUnitVectors(zAxis, tubeCurve.getTangentAt(bu));
+    scene.add(bandMesh);
+  }
+
+  /* ---------- rotating globe ---------- */
+  var drum = new THREE.Group();
+  scene.add(drum);
+
+  var globe = new THREE.Mesh(new THREE.SphereGeometry(R + 0.06, 72, 54), glassMat);
+  drum.add(globe);
+
+  // glowing fresnel shell: bright edges, clear centre, makes the globe read as a sphere
+  var rimMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide,
+    vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.6); gl_FragColor = vec4(vec3(0.75,0.88,1.0) * f, f * 0.75); }'
+  });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(R + 0.1, 72, 54), rimMat));
+
+  var band = new THREE.Mesh(new THREE.TorusGeometry(R + 0.1, 0.11, 16, 128), acrylicMat);
+  drum.add(band);
+  var bandLed = new THREE.Mesh(new THREE.TorusGeometry(R + 0.1, 0.04, 8, 128), lampMat);
+  bandLed.position.z = 0.115;
+  drum.add(bandLed);
+
+  [Math.PI * 5 / 6, Math.PI / 6].forEach(function (a) {
+    var c = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.34, 0.7), new THREE.MeshPhongMaterial({ color: 0xa9b0ba, shininess: 80 }));
+    c.position.set(Math.cos(a) * (R + 0.2), Math.sin(a) * (R + 0.2), 0);
+    c.rotation.z = a - Math.PI / 2;
+    drum.add(c);
+  });
+
+  /* ---------- names data ---------- */
+  var nextId = 1;
+  var names = ['Alex', 'Bianca', 'Carlo', 'Dana', 'Eli', 'Faye', 'Gabe', 'Hana', 'Ivan', 'Jade', 'Kai', 'Lena']
+    .map(function (n) { return { id: nextId++, name: n }; });
+
+  /* ---------- ball textures with names ---------- */
+  function nameTexture(name, hex) {
+    var c = document.createElement('canvas');
+    c.width = 512; c.height = 256;
+    var g = c.getContext('2d');
+    g.fillStyle = hex;
+    g.fillRect(0, 0, 512, 256);
+    g.fillStyle = '#1b1b1f';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    var MAXW = 126;
+    function font(px) { g.font = '800 ' + px + 'px Figtree, Arial, Helvetica, sans-serif'; }
+    function wd(s) { return g.measureText(s).width; }
+
+    var lines = [name], px = 56;
+    font(px);
+    while (px > 24 && wd(name) > MAXW) { px -= 2; font(px); }
+    if (wd(name) > MAXW) {
+      var words = name.split(/\s+/);
+      if (words.length > 1) {
+        var best = null, bestW = 1e9;
+        font(30);
+        for (var k = 1; k < words.length; k++) {
+          var a = words.slice(0, k).join(' '), b = words.slice(k).join(' ');
+          var m = Math.max(wd(a), wd(b));
+          if (m < bestW) { bestW = m; best = [a, b]; }
+        }
+        lines = best;
+        px = 34; font(px);
+        while (px > 20 && Math.max(wd(lines[0]), wd(lines[1])) > MAXW) { px -= 2; font(px); }
+      }
+      lines = lines.map(function (l) {
+        if (wd(l) <= MAXW) return l;
+        while (l.length > 1 && wd(l + '…') > MAXW) l = l.slice(0, -1);
+        return l + '…';
+      });
+    }
+    [128, 384].forEach(function (x) {
+      if (lines.length === 1) {
+        g.fillText(lines[0], x, 130);
+      } else {
+        g.fillText(lines[0], x, 130 - px * 0.58);
+        g.fillText(lines[1], x, 130 + px * 0.58);
+      }
+    });
+    var t = new THREE.CanvasTexture(c);
+    t.anisotropy = 4;
+    return t;
+  }
+
+  /* ---------- ball state ---------- */
+  // one solid shade per ball, a different colour for each
+  var BALL_COLORS = ['#ff5a4d', '#ffa23a', '#ffd93b', '#5ed16a', '#3fd0c0', '#4aa8ff', '#a58bff', '#ff7ab8', '#b6e04a'];
+  var ballGeo = null;
+  var balls = [];
+  var inDrum = [];
+  var trackBalls = [];
+  var drawn = [];
+
+  var drumAng = 0, w = 0, wTarget = 0;
+  var mixing = false, drawing = false, drawTimer = 0;
+  var gateOpen = false, gateTimer = 0, inFlight = false;
+  var turbo = 0;          // 0 = calm, 1 = pressurised air blast
+  var power = 1;          // intensity slider (7 of 10 = 1)
+  var buildUp = 3;        // seconds of spinning before the gate opens
+
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  // shelf slots fill from the bottom row upward, left to right
+  function slotPos(k) {
+    var sp = 2.1 * r;
+    var per = Math.max(1, Math.floor(RACK.w / sp));
+    var row = Math.floor(k / per), col = k % per;
+    return {
+      x: RACK.cx - (per - 1) * sp / 2 + col * sp,
+      y: RACK.bottom + 0.1 + r + row * sp,
+      z: RACK.z
+    };
+  }
+
+  function layoutBalls() {
+    var order = shuffle(balls.filter(function (b) { return b.state !== 'tray'; }));
+    var idx = 0, row = 0;
+    inDrum = [];
+    trackBalls = [];
+    while (idx < order.length && row < 60) {
+      var y = -(R - r) + 0.12 + row * r * 1.75;
+      var hw = Math.sqrt(Math.max(0, (R - r) * (R - r) - y * y)) - 0.02;
+      var x = -hw + (row % 2) * r;
+      while (x <= hw && idx < order.length) {
+        var b = order[idx++];
+        b.state = 'in';
+        b.x = x + (Math.random() - 0.5) * 0.04;
+        b.y = y + (Math.random() - 0.5) * 0.04;
+        b.zr = (Math.random() - 0.5) * 2.8;
+        b.z = b.zr;
+        b.vx = b.vy = 0;
+        b.ang = Math.random() * Math.PI * 2;
+        b.spin = 0;
+        b.rx = 0; b.ry = 0;
+        b.mesh.quaternion.set(0, 0, 0, 1);
+        b.mesh.rotation.set(0, 0, b.ang);
+        b.mesh.position.set(b.x, b.y, b.z);
+        inDrum.push(b);
+        x += 2.05 * r;
+      }
+      row++;
+    }
+  }
+
+  function disposeBalls() {
+    balls.forEach(function (b) {
+      scene.remove(b.mesh);
+      if (b.mesh.material.map) b.mesh.material.map.dispose();
+      b.mesh.material.dispose();
+    });
+    if (ballGeo) ballGeo.dispose();
+    balls = [];
+  }
+
+  // Rebuild every ball from the names list; already-drawn names stay on the shelf.
+  function rebuild() {
+    var keepIds = drawn.map(function (b) { return b.id; });
+    drawing = false; inFlight = false; gateOpen = false;
+    disposeBalls();
+
+    var N = names.length;
+    r = Math.max(0.27, Math.min(0.5, 0.36 * Math.sqrt(33 / Math.max(N, 1))));
+    ballGeo = new THREE.SphereGeometry(r, 32, 24);
+
+    var byId = {};
+    names.forEach(function (item, i) {
+      var color = BALL_COLORS[i % BALL_COLORS.length];
+      var mesh = new THREE.Mesh(
+        ballGeo,
+        new THREE.MeshPhysicalMaterial({
+          map: nameTexture(item.name, color),
+          roughness: 0.35, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12, envMapIntensity: 0.6
+        })
+      );
+      mesh.castShadow = true;
+      scene.add(mesh);
+      var ball = {
+        id: item.id, name: item.name, color: color, mesh: mesh, state: 'in',
+        x: 0, y: 0, z: 0, zr: 0, vx: 0, vy: 0, ang: 0, spin: 0, contact: false,
+        rx: 0, ry: 0, t: 0, curve: null, dur: 2, fromQ: null, slot: null
+      };
+      balls.push(ball);
+      byId[item.id] = ball;
+    });
+
+    drawn = keepIds.map(function (id) { return byId[id]; }).filter(Boolean);
+    drawn.forEach(function (b, k) {
+      var p = slotPos(k);
+      b.state = 'tray';
+      b.mesh.quaternion.set(0, 0, 0, 1);
+      b.mesh.position.set(p.x, p.y, p.z);
+    });
+    layoutBalls();
+    rebuildHistory();
+    renderTable();
+    refreshUI();
+  }
+
+  /* ---------- physics (2D inside the globe) ---------- */
+  function stepPhysics(dt) {
+    drumAng += w * dt;
+    var n = inDrum.length, i, j, b;
+
+    for (i = 0; i < n; i++) {
+      b = inDrum[i];
+      b.vy -= G * (1 - 0.8 * turbo) * dt;
+      if (turbo > 0.01) {
+        // pressurised air: jets blast upward from the bottom, plus random turbulence
+        // strong air jets from the base (off while the gate is open)
+        var jet = gateOpen ? 0 : (b.y < 1.0 ? 1 : 0.3) * (1 - Math.min(1, Math.abs(b.x) / 3.2));
+        b.vy += 70 * power * turbo * jet * dt;
+        b.vx += (Math.random() - 0.5) * 160 * power * turbo * dt;
+        b.vy += (Math.random() - 0.5) * 160 * power * turbo * dt;
+        var sp2 = b.vx * b.vx + b.vy * b.vy;
+        var cap = 26 * Math.max(0.5, power);
+        if (sp2 > cap * cap) { var sc = cap / Math.sqrt(sp2); b.vx *= sc; b.vy *= sc; }
+      }
+      if (gateOpen) {
+        // suction toward the exit tube on the right side of the globe
+        var gx = (R - r) - b.x, gy = -b.y;
+        var gl = Math.sqrt(gx * gx + gy * gy) || 1;
+        var pull = Math.min(1, gateTimer / 1.2) * 26;
+        b.vx += gx / gl * pull * dt;
+        b.vy += gy / gl * pull * dt;
+      }
+      b.vx *= (1 - 0.03 * dt);
+      b.vy *= (1 - 0.03 * dt);
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.contact = false;
+    }
+
+    var m = 2 * r;
+    for (i = 0; i < n; i++) {
+      for (j = i + 1; j < n; j++) {
+        var A = inDrum[i], B = inDrum[j];
+        var dx = B.x - A.x, dy = B.y - A.y;
+        var d2 = dx * dx + dy * dy;
+        if (d2 < m * m && d2 > 1e-10) {
+          var d = Math.sqrt(d2), nx = dx / d, ny = dy / d, ov = (m - d) / 2;
+          A.x -= nx * ov; A.y -= ny * ov; B.x += nx * ov; B.y += ny * ov;
+          var vn = (A.vx - B.vx) * nx + (A.vy - B.vy) * ny;
+          if (vn > 0) {
+            var jj = (0.725 + 0.2 * turbo) * vn;
+            A.vx -= jj * nx; A.vy -= jj * ny; B.vx += jj * nx; B.vy += jj * ny;
+          }
+        }
+      }
+    }
+
+    var leaving = null;
+    for (i = 0; i < n; i++) {
+      b = inDrum[i];
+      var dd = Math.sqrt(b.x * b.x + b.y * b.y);
+      // exit gate at 3 o'clock, where the draw tube begins
+      if (gateOpen && !leaving && b.x > 0 && Math.abs(b.y) < 0.4 && dd > R - r * 1.1) {
+        leaving = b;
+        continue;
+      }
+      if (dd > R - r) {
+        var wnx = b.x / dd, wny = b.y / dd;
+        b.x = wnx * (R - r); b.y = wny * (R - r);
+        var vwx = -w * wny * R, vwy = w * wnx * R;
+        var ux = b.vx - vwx, uy = b.vy - vwy;
+        var vnn = ux * wnx + uy * wny;
+        if (vnn > 0) { ux -= (1.25 + 0.6 * turbo) * vnn * wnx; uy -= (1.25 + 0.6 * turbo) * vnn * wny; }
+        var tx = -wny, ty = wnx;
+        var vt = (ux * tx + uy * ty) * Math.exp(-11 * dt);
+        var vn3 = ux * wnx + uy * wny;
+        ux = vn3 * wnx + vt * tx;
+        uy = vn3 * wny + vt * ty;
+        b.vx = ux + vwx; b.vy = uy + vwy;
+        b.contact = true;
+      }
+    }
+
+    for (i = 0; i < n; i++) {
+      b = inDrum[i];
+      var d3 = Math.max(0.3, Math.sqrt(b.x * b.x + b.y * b.y));
+      if (b.contact || d3 > R - r - 0.08) {
+        var omegaBall = (b.x * b.vy - b.y * b.vx) / (d3 * d3);
+        var target = w - ((R - r) / r) * (omegaBall - w);
+        target = Math.max(-30, Math.min(30, target));
+        b.spin += (target - b.spin) * Math.min(1, 10 * dt);
+      } else {
+        b.spin *= Math.exp(-0.6 * dt);
+      }
+      b.ang += b.spin * dt;
+    }
+
+    if (leaving) sendToTrack(leaving);
+  }
+
+  /* ---------- ball rides the tube round the machine and drops onto the shelf ---------- */
+  function sendToTrack(b) {
+    var idx = inDrum.indexOf(b);
+    if (idx >= 0) inDrum.splice(idx, 1);
+    b.state = 'track';
+    var slot = slotPos(drawn.length);
+    b.slot = slot;
+
+    // follow the tube, then fall from the spout in front of the shelf into its slot
+    var pts = [new THREE.Vector3(b.x, b.y, b.z)].concat(tubePts.map(function (p) { return p.clone(); }));
+    pts.push(new THREE.Vector3(slot.x, Math.min(SPOUT.y - 0.3, slot.y + 1.0), SPOUT.z));
+    pts.push(new THREE.Vector3(slot.x, slot.y + 0.4, SPOUT.z - 0.3));
+    pts.push(new THREE.Vector3(slot.x, slot.y, slot.z));
+    b.curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    b.dur = Math.max(3, b.curve.getLength() / 8);
+    b.t = 0;
+    b.fromQ = b.mesh.quaternion.clone();
+    trackBalls.push(b);
+
+    gateOpen = false;
+    drawing = false;
+    inFlight = true;
+    refreshUI();
+  }
+
+  var identityQ = new THREE.Quaternion();
+  function updateTracks(dt) {
+    for (var i = trackBalls.length - 1; i >= 0; i--) {
+      var b = trackBalls[i];
+      b.t += dt / b.dur;
+      var t = Math.min(1, b.t);
+      var e = t * t * (3 - 2 * t);
+      var p = b.curve.getPointAt(e);
+      b.mesh.position.copy(p);
+      b.mesh.quaternion.copy(b.fromQ).slerp(identityQ, e);
+      if (t >= 1) {
+        trackBalls.splice(i, 1);
+        b.state = 'tray';
+        b.mesh.position.set(b.slot.x, b.slot.y, b.slot.z);
+        registerDraw(b);
+      }
+    }
+  }
+
+  /* ---------- winner sign above the machine ---------- */
+  var signCanvas = document.createElement('canvas');
+  signCanvas.width = 1024; signCanvas.height = 256;
+  var signTex = new THREE.CanvasTexture(signCanvas);
+  var sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.6, 1.4),
+    new THREE.MeshBasicMaterial({ map: signTex, transparent: true, depthWrite: false })
+  );
+  sign.position.set(0, 4.8, 0);
+  sign.renderOrder = 10;
+  scene.add(sign);
+  var signKey = '', signT = 9;
+
+  function updateSign() {
+    var label, text, color;
+    if (drawing || inFlight) { label = ''; text = 'DRAWING…'; color = '#ffd36b'; }
+    else if (drawn.length === 0) { label = ''; text = 'LUCKY DRAW'; color = '#ffd36b'; }
+    else {
+      var lb = drawn[drawn.length - 1];
+      label = remaining() === 0 ? 'LAST PICK' : 'WINNER'; text = lb.name; color = lb.color;
+    }
+    var key = label + '|' + text + '|' + color;
+    if (key === signKey) return;
+    signKey = key;
+    if (label) signT = 0;
+
+    var g = signCanvas.getContext('2d');
+    g.clearRect(0, 0, 1024, 256);
+    var grd = g.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0, 'rgba(40,22,90,0.94)');
+    grd.addColorStop(1, 'rgba(14,8,40,0.94)');
+    g.fillStyle = grd;
+    g.beginPath(); g.roundRect ? g.roundRect(8, 8, 1008, 240, 40) : g.rect(8, 8, 1008, 240); g.fill();
+    g.lineWidth = 8; g.strokeStyle = '#e0b040'; g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (label) {
+      g.fillStyle = '#e0b040';
+      g.font = '800 40px Figtree, Arial, sans-serif';
+      g.fillText(label, 512, 62);
+    }
+    var px = label ? 120 : 130;
+    g.font = '800 ' + px + 'px Figtree, Arial, sans-serif';
+    while (px > 36 && g.measureText(text).width > 900) { px -= 4; g.font = '800 ' + px + 'px Figtree, Arial, sans-serif'; }
+    g.shadowColor = color; g.shadowBlur = 24;
+    g.fillStyle = color;
+    g.fillText(text, 512, label ? 158 : 130);
+    g.shadowBlur = 0;
+    signTex.needsUpdate = true;
+  }
+
+  /* ---------- UI ---------- */
+  var lastDot = document.getElementById('lastDot');
+  var lastTitle = document.getElementById('lastTitle');
+  var lastName = document.getElementById('lastName');
+  var leftText = document.getElementById('leftText');
+  var historyEl = document.getElementById('history');
+  var rowsEl = document.getElementById('rows');
+  var noteEl = document.getElementById('note');
+  var mixBtn = document.getElementById('mixBtn');
+  var drawBtn = document.getElementById('drawBtn');
+  var resetBtn = document.getElementById('resetBtn');
+  var namesBtn = document.getElementById('namesBtn');
+  var closePanel = document.getElementById('closePanel');
+  var panel = document.getElementById('panel');
+  var nameInput = document.getElementById('nameInput');
+  var addBtn = document.getElementById('addBtn');
+  var clearBtn = document.getElementById('clearBtn');
+
+  function remaining() { return balls.length - drawn.length - trackBalls.length; }
+
+  function refreshUI() {
+    var left = remaining();
+    var total = balls.length;
+    leftText.textContent = total === 0
+      ? 'No names yet'
+      : total + (total === 1 ? ' name' : ' names') + ' · ' + left + ' left in the globe';
+    drawBtn.disabled = drawing || inFlight || left <= 0;
+    drawBtn.textContent = drawing ? 'Drawing…' : 'Draw a name';
+    resetBtn.disabled = drawn.length === 0 && !drawing && !inFlight;
+    mixBtn.setAttribute('aria-pressed', mixing ? 'true' : 'false');
+    mixBtn.textContent = mixing ? 'Stop mixing' : 'Mix balls';
+    clearBtn.disabled = total === 0;
+
+    lastDot.style.backgroundColor = '';
+    if (drawing || inFlight) {
+      lastDot.className = 'dot empty';
+      lastTitle.textContent = 'Drawing…';
+      lastName.textContent = '…';
+    } else if (drawn.length === 0) {
+      lastDot.className = 'dot empty';
+      lastTitle.textContent = total === 0 ? 'Add a name to begin' : 'Ready to draw';
+      lastName.textContent = '–';
+    } else {
+      var lb = drawn[drawn.length - 1];
+      lastDot.className = 'dot';
+      lastDot.style.backgroundColor = lb.color;
+      lastTitle.textContent = left === 0 ? 'Last pick – everyone has been drawn' : 'Latest pick';
+      lastName.textContent = lb.name;
+    }
+    updateSign();
+  }
+
+  function rebuildHistory() {
+    historyEl.innerHTML = '';
+    drawn.forEach(function (b) { historyEl.appendChild(chipEl(b)); });
+  }
+  function chipEl(b) {
+    var s = document.createElement('div');
+    s.className = 'chip';
+    s.style.background = b.color;
+    s.textContent = b.name;
+    s.title = b.name;
+    return s;
+  }
+
+  function renderTable() {
+    rowsEl.innerHTML = '';
+    if (names.length === 0) {
+      var tr0 = document.createElement('tr');
+      tr0.className = 'empty-row';
+      var td0 = document.createElement('td');
+      td0.colSpan = 4;
+      td0.textContent = 'The list is empty. Add a name above.';
+      tr0.appendChild(td0);
+      rowsEl.appendChild(tr0);
+      return;
+    }
+    names.forEach(function (item, i) {
+      var pickIdx = -1;
+      for (var k = 0; k < drawn.length; k++) if (drawn[k].id === item.id) { pickIdx = k; break; }
+      var tr = document.createElement('tr');
+      if (pickIdx >= 0) tr.className = 'picked';
+
+      var a = document.createElement('td'); a.className = 'idx'; a.textContent = String(i + 1);
+      var b = document.createElement('td'); b.className = 'nm'; b.textContent = item.name;
+      var c = document.createElement('td'); c.className = 'st';
+      c.textContent = pickIdx >= 0 ? 'Pick ' + (pickIdx + 1) : 'In globe';
+      var d = document.createElement('td'); d.className = 'del';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = '×';
+      btn.setAttribute('data-id', String(item.id));
+      btn.setAttribute('aria-label', 'Delete ' + item.name);
+      btn.title = 'Delete';
+      d.appendChild(btn);
+
+      tr.appendChild(a); tr.appendChild(b); tr.appendChild(c); tr.appendChild(d);
+      rowsEl.appendChild(tr);
+    });
+  }
+
+  function say(msg) { noteEl.textContent = msg; }
+
+  function addNames(text) {
+    var parts = text.split(/[\n,;]+/).map(function (s) { return s.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+    if (!parts.length) { say('Type a name first.'); return; }
+    var added = 0, skipped = 0, cut = false;
+    parts.forEach(function (p) {
+      if (names.length >= MAX_NAMES) { skipped++; return; }
+      if (p.length > MAX_LEN) { p = p.slice(0, MAX_LEN).trim(); cut = true; }
+      names.push({ id: nextId++, name: p });
+      added++;
+    });
+    if (added) rebuild();
+    var msg = added === 1 ? 'Added 1 name.' : 'Added ' + added + ' names.';
+    if (skipped) msg = 'Added ' + added + '. The globe holds up to ' + MAX_NAMES + ' names.';
+    else if (cut) msg += ' Long names were shortened to ' + MAX_LEN + ' characters.';
+    say(msg);
+  }
+
+  function startDraw() {
+    if (drawing || inFlight || remaining() <= 0) return;
+    drawing = true;
+    drawTimer = buildUp;
+    gateOpen = false;
+    refreshUI();
+  }
+
+  function registerDraw(b) {
+    drawn.push(b);
+    inFlight = false;
+    historyEl.appendChild(chipEl(b));
+    renderTable();
+    refreshUI();
+  }
+
+  function resetDraw() {
+    drawn = [];
+    rebuild();
+    say('Draw reset. All names are back in the globe.');
+  }
+
+  mixBtn.addEventListener('click', function () { mixing = !mixing; refreshUI(); });
+  drawBtn.addEventListener('click', startDraw);
+  resetBtn.addEventListener('click', resetDraw);
+  addBtn.addEventListener('click', function () {
+    addNames(nameInput.value);
+    nameInput.value = '';
+    nameInput.focus();
+  });
+  nameInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addNames(nameInput.value);
+      nameInput.value = '';
+    }
+  });
+  rowsEl.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('button[data-id]');
+    if (!btn) return;
+    var id = Number(btn.getAttribute('data-id'));
+    var item = names.filter(function (n) { return n.id === id; })[0];
+    names = names.filter(function (n) { return n.id !== id; });
+    rebuild();
+    say(item ? 'Deleted ' + item.name + '.' : 'Deleted.');
+  });
+  var clearArmed = false, clearTimer = null;
+  clearBtn.addEventListener('click', function () {
+    if (!clearArmed) {
+      clearArmed = true;
+      clearBtn.textContent = 'Click again to confirm';
+      clearTimer = setTimeout(function () { clearArmed = false; clearBtn.textContent = 'Remove all names'; }, 3000);
+      return;
+    }
+    clearTimeout(clearTimer);
+    clearArmed = false;
+    clearBtn.textContent = 'Remove all names';
+    names = []; drawn = [];
+    rebuild();
+    say('All names removed.');
+  });
+
+  var powerSlider = document.getElementById('powerSlider');
+  var powerOut = document.getElementById('powerOut');
+  var buildSlider = document.getElementById('buildSlider');
+  var buildOut = document.getElementById('buildOut');
+  powerSlider.addEventListener('input', function () {
+    var v = Number(powerSlider.value);
+    power = v / 7;
+    powerOut.textContent = String(v);
+  });
+  buildSlider.addEventListener('input', function () {
+    buildUp = Number(buildSlider.value);
+    buildOut.textContent = buildUp + ' s';
+  });
+  namesBtn.addEventListener('click', function () { panel.classList.add('open'); nameInput.focus(); });
+  closePanel.addEventListener('click', function () { panel.classList.remove('open'); });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.code === 'Space' && !e.repeat) {
+      var tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      startDraw();
+    }
+  });
+
+  /* ---------- camera controls ---------- */
+  var az = -0.5, el = 0.24, zoom = 1, baseDist = 22, sway = 0;
+  var target = new THREE.Vector3(2.6, -0.8, -1.0);
+  function panelWidth() { return window.innerWidth >= 900 ? PANEL_W : 0; }
+  function fitDist() {
+    var availW = window.innerWidth - panelWidth();
+    var aspect = availW / window.innerHeight;
+    var tanf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    var dW = 8.4 / (tanf * aspect);
+    var dH = 8.4 / tanf;
+    baseDist = Math.max(dW, dH, 14);
+  }
+  function updateCamera() {
+    var d = baseDist * zoom;
+    camera.position.set(
+      target.x + d * Math.sin(az + sway) * Math.cos(el),
+      target.y + d * Math.sin(el),
+      target.z + d * Math.cos(az + sway) * Math.cos(el)
+    );
+    camera.lookAt(target);
+  }
+  function resize() {
+    var wd = window.innerWidth, ht = window.innerHeight;
+    renderer.setSize(wd, ht);
+    camera.aspect = wd / ht;
+    var pw = panelWidth();
+    if (pw > 0) camera.setViewOffset(wd, ht, pw / 2, 0, wd, ht);
+    else camera.clearViewOffset();
+    camera.updateProjectionMatrix();
+    fitDist();
+    updateCamera();
+  }
+  window.addEventListener('resize', resize);
+
+  var pointers = {};
+  var pinchStart = 0, zoomStart = 1;
+  function pDist() {
+    var k = Object.keys(pointers);
+    if (k.length < 2) return 0;
+    var a = pointers[k[0]], b = pointers[k[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  stage.addEventListener('pointerdown', function (e) {
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+    if (Object.keys(pointers).length === 2) { pinchStart = pDist(); zoomStart = zoom; }
+  });
+  stage.addEventListener('pointermove', function (e) {
+    var p = pointers[e.pointerId];
+    if (!p) return;
+    var count = Object.keys(pointers).length;
+    if (count === 1) {
+      az -= (e.clientX - p.x) * 0.006;
+      el += (e.clientY - p.y) * 0.006;
+      az = Math.max(-1.6, Math.min(1.6, az));
+      el = Math.max(-0.05, Math.min(1.2, el));
+    }
+    p.x = e.clientX; p.y = e.clientY;
+    if (count === 2 && pinchStart > 0) {
+      zoom = Math.max(0.45, Math.min(1.8, zoomStart * pinchStart / pDist()));
+    }
+    updateCamera();
+  });
+  function endPointer(e) { delete pointers[e.pointerId]; }
+  stage.addEventListener('pointerup', endPointer);
+  stage.addEventListener('pointercancel', endPointer);
+  stage.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    zoom = Math.max(0.45, Math.min(1.8, zoom * (1 + e.deltaY * 0.001)));
+    updateCamera();
+  }, { passive: false });
+
+  /* ---------- main loop ---------- */
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+
+    if (drawing && !gateOpen) {
+      drawTimer -= dt;
+      if (drawTimer <= 0) { gateOpen = true; gateTimer = 0; }
+    }
+    if (gateOpen) gateTimer += dt;
+
+    var turboTarget;
+    if (drawing) {
+      // the globe spins while air jets throw the balls around; it slows as the gate opens
+      wTarget = gateOpen ? 3 : 9 * power;
+      turboTarget = gateOpen ? 0.5 : 1;
+    } else {
+      wTarget = mixing ? 8 * power : 0;
+      turboTarget = mixing ? 1 : 0;
+    }
+    w += (wTarget - w) * Math.min(1, 2 * dt);
+    turbo += (turboTarget - turbo) * Math.min(1, 4 * dt);
+
+    var steps = 8, sub = dt / steps;
+    for (var s = 0; s < steps; s++) stepPhysics(sub);
+
+    for (var i = 0; i < inDrum.length; i++) {
+      var b = inDrum[i];
+      b.zr = Math.max(-1.6, Math.min(1.6, b.zr + (Math.random() - 0.5) * 0.16 * turbo));   // drift in depth while air-mixing
+      // spread balls through the depth of the globe, always staying inside the glass
+      var zm = Math.sqrt(Math.max(0, (R + 0.06 - r) * (R + 0.06 - r) - (b.x * b.x + b.y * b.y))) - 0.02;
+      b.z = Math.max(-zm, Math.min(zm, b.zr));
+      // tumble in 3D as the ball rolls and bounces, not just spin flat
+      b.rx += b.vy * dt / r * 0.7 + (Math.random() - 0.5) * 6 * turbo * dt;
+      b.ry -= b.vx * dt / r * 0.7 + (Math.random() - 0.5) * 6 * turbo * dt;
+      b.mesh.position.set(b.x, b.y, b.z);
+      b.mesh.rotation.set(b.rx, b.ry, b.ang);
+    }
+    updateTracks(dt);
+
+    sway = 0.07 * Math.sin(now * 0.0004);   // slow idle sway for parallax
+    updateCamera();
+
+    sign.quaternion.copy(camera.quaternion);   // always face the viewer
+    signT += dt;
+    sign.scale.setScalar(1 + 0.22 * Math.exp(-signT * 5) * Math.cos(signT * 16));   // pop when a winner lands
+
+    drum.rotation.z = drumAng;
+    var base = (drawing || inFlight) ? 1.8 : (mixing ? 1.3 : 0.9);
+    lampMat.emissiveIntensity = turbo > 0.5 ? 0.9 + 0.9 * Math.abs(Math.sin(now * 0.02)) : base;
+    ledLight.intensity = 0.6 + 0.5 * lampMat.emissiveIntensity;
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+
+  [body, platter, baseDisc, collar].forEach(function (m) { m.castShadow = true; m.receiveShadow = true; });
+  stageFloor.receiveShadow = true;
+
+  rebuild();
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
